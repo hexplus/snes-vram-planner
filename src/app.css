@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "sibujs-ui/themes/base.css";
+@import "sibujs-ui/themes/default.css";
+@source "../node_modules/sibujs-ui/dist";
