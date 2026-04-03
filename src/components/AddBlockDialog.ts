@@ -10,36 +10,9 @@ import { appStore, blocks } from "../store";
 import { generateId } from "../utils/id";
 import { fmtHex } from "../utils/format";
 import { detectConflicts } from "../utils/conflicts";
-import { VRAM_WORDS, WORDS_PER_ROW } from "../constants";
+import { findFreePosition } from "../utils/placement";
+import { VRAM_WORDS, WORDS_PER_ROW, CATEGORY_META } from "../constants";
 import type { BlockCategory, BlockColor, VramBlock } from "../types";
-
-/**
- * Find the first free position in VRAM that can fit `size` words
- * without overlapping any existing blocks. Returns a row-aligned start (256-word boundary).
- */
-function findFreePosition(existingBlocks: VramBlock[], size: number): number {
-  if (existingBlocks.length === 0) return 0;
-
-  const sorted = [...existingBlocks].sort((a, b) => a.startWord - b.startWord);
-
-  // Check gap before first block
-  if (sorted[0].startWord >= size) return 0;
-
-  // Check gaps between blocks
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const gapStart = sorted[i].startWord + sorted[i].sizeWords;
-    const gapEnd = sorted[i + 1].startWord;
-    const aligned = Math.ceil(gapStart / WORDS_PER_ROW) * WORDS_PER_ROW;
-    if (aligned + size <= gapEnd) return aligned;
-  }
-
-  // Check gap after last block
-  const lastEnd = sorted[sorted.length - 1].startWord + sorted[sorted.length - 1].sizeWords;
-  const aligned = Math.ceil(lastEnd / WORDS_PER_ROW) * WORDS_PER_ROW;
-  if (aligned + size <= VRAM_WORDS) return aligned;
-
-  return 0;
-}
 
 export function AddBlockDialog() {
   const [label, setLabel]       = signal("New Block");
@@ -157,13 +130,16 @@ export function AddBlockDialog() {
                   onValueChange: (v: string) => setCategory(v as BlockCategory),
                   nodes: [
                     SelectTrigger({ nodes: SelectValue({ placeholder: "Category" }) }),
-                    SelectContent({ nodes: [
-                      SelectItem({ value: "bg-tiles",    nodes: "BG Tiles" }),
-                      SelectItem({ value: "bg-map",      nodes: "BG Tilemap" }),
-                      SelectItem({ value: "obj-tiles",   nodes: "OBJ Tiles" }),
-                      SelectItem({ value: "mode7-tiles", nodes: "Mode 7 Tiles" }),
-                      SelectItem({ value: "free",        nodes: "Free Space" }),
-                    ]}),
+                    SelectContent({ nodes:
+                      Object.entries(CATEGORY_META).map(([key, meta]) =>
+                        SelectItem({ value: key, nodes:
+                          div({ class: "flex items-center gap-2", nodes: [
+                            span({ class: `inline-block w-2.5 h-2.5 rounded-sm ${meta.badge}` }),
+                            span({ nodes: meta.label }),
+                          ]}),
+                        })
+                      ),
+                    }),
                   ],
                 }),
               ]}),

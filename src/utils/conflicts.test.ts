@@ -36,12 +36,13 @@ describe("detectConflicts", () => {
     const b = makeBlock({ id: "b", startWord: 100, sizeWords: 200 });
     const conflicts = detectConflicts([a, b]);
     expect(conflicts).toHaveLength(1);
-    expect(conflicts[0]).toEqual({
+    expect(conflicts[0]).toMatchObject({
       blockAId: "a",
       blockBId: "b",
       overlapStart: 100,
       overlapEnd: 200,
     });
+    expect(conflicts[0].explanation).toBeTruthy();
   });
 
   it("detects full containment as a conflict", () => {
@@ -71,13 +72,13 @@ describe("detectConflicts", () => {
 
 describe("blockHasConflict", () => {
   it("returns true when block is involved in a conflict", () => {
-    const conflicts = [{ blockAId: "a", blockBId: "b", overlapStart: 100, overlapEnd: 200 }];
+    const conflicts = [{ blockAId: "a", blockBId: "b", overlapStart: 100, overlapEnd: 200, explanation: "" }];
     expect(blockHasConflict("a", conflicts)).toBe(true);
     expect(blockHasConflict("b", conflicts)).toBe(true);
   });
 
   it("returns false when block is not involved", () => {
-    const conflicts = [{ blockAId: "a", blockBId: "b", overlapStart: 100, overlapEnd: 200 }];
+    const conflicts = [{ blockAId: "a", blockBId: "b", overlapStart: 100, overlapEnd: 200, explanation: "" }];
     expect(blockHasConflict("c", conflicts)).toBe(false);
   });
 

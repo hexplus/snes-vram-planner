@@ -2,16 +2,19 @@ import {
   div, span, signal, derived, ref, each
 } from "sibujs";
 import { resize } from "sibujs/browser";
-import { cn } from "sibujs-ui";
+import { cn, Badge, LockIcon, ZapIcon, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "sibujs-ui";
 import {
   blocks, conflicts, alignWarnings, showGrid, showAddresses, zoom,
-  selectedId, filterCat, appStore
+  selectedId, filterCat, appStore, objPage0Range, objPage1Range, activeMode,
+  compareScene, obselWarnings, showBytes
 } from "../store";
 import { blockHasConflict, blockHasWarning, detectConflicts } from "../utils/conflicts";
-import { fmtHex } from "../utils/format";
-import { WORDS_PER_ROW, TOTAL_ROWS, ROW_HEIGHT_PX, BLOCK_COLORS, VRAM_WORDS } from "../constants";
+import { fmtHex, tileCount, bppForCategory } from "../utils/format";
+import { WORDS_PER_ROW, TOTAL_ROWS, ROW_HEIGHT_PX, BLOCK_COLORS, VRAM_WORDS, CATEGORY_META } from "../constants";
 import { generateId } from "../utils/id";
+import { getAlignmentStep } from "../utils/alignment";
 import type { VramBlock } from "../types";
+
 
 export function VramGrid() {
   const containerRef = ref<HTMLElement | null>(null);
@@ -61,7 +64,7 @@ export function VramGrid() {
             !showAddresses() && "hidden"
           ),
           style: { top: `${i * ROW_HEIGHT_PX + 2}px` },
-          nodes: fmtHex(rowStartWord),
+          nodes: () => fmtHex(rowStartWord, showBytes()),
         });
         rows.push(addrLabel);
       }
@@ -71,54 +74,101 @@ export function VramGrid() {
     return rows;
   }
 
-  // ── Click handler for the grid background ─────────────────────────
-  function onGridClick(e: Event) {
-    const me = e as MouseEvent;
-    // Ignore clicks on block chips
-    if ((me.target as HTMLElement).closest("[data-block-chip]")) return;
-    appStore.dispatch("selectBlock", null);
+  // ── Drag-to-create selection state ────────────────────────────────
+  const [selStartRow, setSelStartRow] = signal(-1);
+  const [selEndRow, setSelEndRow] = signal(-1);
+  const [isSelecting, setIsSelecting] = signal(false);
+
+  // Computed selection range (always normalized so start <= end)
+  const selRange = derived(() => {
+    const a = selStartRow(), b = selEndRow();
+    if (a < 0 || b < 0) return null;
+    const minRow = Math.min(a, b);
+    const maxRow = Math.max(a, b);
+    return {
+      startWord: minRow * WORDS_PER_ROW,
+      sizeWords: (maxRow - minRow + 1) * WORDS_PER_ROW,
+    };
+  });
+
+  function rowFromMouseEvent(me: MouseEvent): number {
+    const gridEl = containerRef.current;
+    if (!gridEl) return 0;
+    const rect = gridEl.getBoundingClientRect();
+    const yInGrid = me.clientY - rect.top + gridEl.scrollTop;
+    return Math.max(0, Math.min(Math.floor(yInGrid / ROW_HEIGHT_PX), TOTAL_ROWS - 1));
   }
 
-  function onGridDblClick(e: Event) {
+  function onGridMouseDown(e: Event) {
     const me = e as MouseEvent;
+    if (me.button !== 0) return;
     if ((me.target as HTMLElement).closest("[data-block-chip]")) return;
 
-    const gridEl = containerRef.current;
-    if (!gridEl) return;
-    const rect = gridEl.getBoundingClientRect();
-    const scrollTop = gridEl.scrollTop;
+    const startRow = rowFromMouseEvent(me);
+    const startX = me.clientX;
+    const startY = me.clientY;
+    let dragging = false;
 
-    const yInGrid = me.clientY - rect.top + scrollTop;
-    const xInGrid = me.clientX - rect.left;
+    setSelStartRow(startRow);
+    setSelEndRow(startRow);
 
-    const row = Math.floor(yInGrid / ROW_HEIGHT_PX);
-    const ppw = pixelsPerWord();
-    const col = ppw > 0 ? Math.floor(xInGrid / ppw) : 0;
-    const wordAddr = row * WORDS_PER_ROW + Math.max(0, Math.min(col, WORDS_PER_ROW - 1));
-
-    // Snap to 256-word (row) boundaries for clean placement
-    const snapped = Math.floor(wordAddr / WORDS_PER_ROW) * WORDS_PER_ROW;
-
-    // Check if this position is free
-    const candidate: VramBlock = {
-      id: "__candidate__", label: "", startWord: snapped, sizeWords: 256,
-      category: "bg-tiles", color: "gray", locked: false, note: "",
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragging) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        dragging = true;
+        setIsSelecting(true);
+      }
+      setSelEndRow(rowFromMouseEvent(ev));
     };
-    const wouldConflict = detectConflicts([...blocks(), candidate])
-      .some(c => c.blockAId === "__candidate__" || c.blockBId === "__candidate__");
 
-    if (wouldConflict) return; // Don't add over existing blocks
+    const onMouseUp = (ev: MouseEvent) => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
 
-    appStore.dispatch("addBlock", {
-      id: generateId(),
-      label: "New Block",
-      startWord: Math.min(snapped, VRAM_WORDS - 256),
-      sizeWords: 256,
-      category: "bg-tiles" as const,
-      color: "gray" as const,
-      locked: false,
-      note: "",
-    });
+      if (!dragging) {
+        // No drag — treat as a click to deselect
+        setSelStartRow(-1);
+        setSelEndRow(-1);
+        appStore.dispatch("selectBlock", null);
+      } else {
+        // Drag finished — create a block from the selection
+        setSelEndRow(rowFromMouseEvent(ev));
+        const range = selRange();
+        if (range && range.sizeWords > 0) {
+          const startWord = Math.max(0, Math.min(range.startWord, VRAM_WORDS - WORDS_PER_ROW));
+          const sizeWords = Math.min(range.sizeWords, VRAM_WORDS - startWord);
+
+          const candidate: VramBlock = {
+            id: "__candidate__", label: "", startWord, sizeWords,
+            category: "bg-tiles", color: "gray", locked: false, note: "",
+          };
+          const wouldConflict = detectConflicts([...blocks(), candidate])
+            .some(c => c.blockAId === "__candidate__" || c.blockBId === "__candidate__");
+
+          if (!wouldConflict) {
+            appStore.dispatch("addBlock", {
+              id: generateId(),
+              label: "New Block",
+              startWord,
+              sizeWords,
+              category: "bg-tiles" as const,
+              color: "gray" as const,
+              locked: false,
+              note: "",
+            });
+          }
+        }
+      }
+
+      setIsSelecting(false);
+      setSelStartRow(-1);
+      setSelEndRow(-1);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   }
 
   // ── Filtered blocks ───────────────────────────────────────────────
@@ -132,8 +182,7 @@ export function VramGrid() {
     class: "relative w-full overflow-x-hidden overflow-y-auto font-mono",
     style: { height: "100%" },
     on: {
-      click: onGridClick,
-      dblclick: onGridDblClick,
+      mousedown: onGridMouseDown,
     },
   }) as HTMLElement;
 
@@ -149,6 +198,45 @@ export function VramGrid() {
     inner.appendChild(el as Node);
   }
 
+  // OBJ page overlays
+  inner.appendChild(ObjPageOverlay(pixelsPerWord, objPage0Range, "OBJ Page 0") as Node);
+  inner.appendChild(ObjPageOverlay(pixelsPerWord, objPage1Range, "OBJ Page 1") as Node);
+
+  // Selection preview overlay
+  const selPreview = div({
+    class: () => cn(
+      "absolute pointer-events-none z-15 rounded border-2 border-dashed border-primary/70 bg-primary/10",
+      !isSelecting() && "hidden",
+    ),
+    style: {
+      top: () => {
+        const r = selRange();
+        if (!r) return "0px";
+        const startRow = Math.floor(r.startWord / WORDS_PER_ROW);
+        return `${startRow * ROW_HEIGHT_PX}px`;
+      },
+      left: "0px",
+      width: () => `${WORDS_PER_ROW * pixelsPerWord()}px`,
+      height: () => {
+        const r = selRange();
+        if (!r) return "0px";
+        const rows = r.sizeWords / WORDS_PER_ROW;
+        return `${rows * ROW_HEIGHT_PX}px`;
+      },
+    },
+    nodes: span({
+      class: "absolute top-1 left-2 text-[10px] font-mono text-primary font-medium",
+      nodes: () => {
+        const r = selRange();
+        if (!r) return "";
+        const endWord = r.startWord + r.sizeWords;
+        const kb = (r.sizeWords * 2 / 1024).toFixed(1);
+        return `${fmtHex(r.startWord, showBytes())}–${fmtHex(endWord, showBytes())}  (${kb} KB)`;
+      },
+    }),
+  });
+  inner.appendChild(selPreview as Node);
+
   // Render block chips absolutely positioned within the grid
   const blockChips = each(
     filteredBlocks,
@@ -156,6 +244,17 @@ export function VramGrid() {
     { key: b => b.id }
   );
   inner.appendChild(blockChips as Node);
+
+  // Compare scene ghost blocks
+  const ghostBlocks = div({
+    class: () => compareScene() ? "" : "hidden",
+    nodes: () => {
+      const scene = compareScene();
+      if (!scene) return "";
+      return scene.blocks.map(b => GhostChip(b.startWord, b.sizeWords, b.label, pixelsPerWord));
+    },
+  });
+  inner.appendChild(ghostBlocks as Node);
 
   grid.appendChild(inner as Node);
   return grid;
@@ -172,6 +271,23 @@ function BlockChip(
   const isSelected  = derived(() => selectedId() === blockId);
   const hasConflict = derived(() => blockHasConflict(blockId, conflicts()));
   const hasWarning  = derived(() => blockHasWarning(blockId, alignWarnings()));
+
+  const tooltipText = derived(() => {
+    const lines: string[] = [];
+    // Conflict explanations
+    for (const c of conflicts()) {
+      if (c.blockAId === blockId || c.blockBId === blockId) lines.push(c.explanation);
+    }
+    // Alignment warnings
+    for (const w of alignWarnings()) {
+      if (w.blockId === blockId) lines.push(w.message);
+    }
+    // OBSEL warnings
+    for (const w of obselWarnings()) {
+      if (w.blockId === blockId) lines.push(w.message);
+    }
+    return lines.join("\n");
+  });
 
   const colors = derived(() => {
     const b = block();
@@ -257,11 +373,12 @@ function BlockChip(
         setIsDragging(true);
       }
 
+      const alignStep = getAlignmentStep(b.category);
       const deltaY = ev.clientY - dragStartMouseY();
       const deltaRows = Math.round(deltaY / ROW_HEIGHT_PX);
       const newWord = dragOriginalWord() + deltaRows * WORDS_PER_ROW;
       const clamped = Math.max(0, Math.min(newWord, VRAM_WORDS - b.sizeWords));
-      const snapped = Math.round(clamped / WORDS_PER_ROW) * WORDS_PER_ROW;
+      const snapped = Math.round(clamped / alignStep) * alignStep;
 
       const candidate: VramBlock = { ...b, startWord: snapped };
       const others = blocks().filter(x => x.id !== blockId);
@@ -293,8 +410,8 @@ function BlockChip(
     class: () => {
       const c = colors();
       return cn(
-        "absolute rounded text-[10px] font-medium px-1.5 py-0.5 overflow-hidden whitespace-nowrap z-20",
-        "flex items-start",
+        "absolute rounded text-[10px] font-medium px-1.5 py-0.5 overflow-hidden z-20",
+        "flex items-start gap-1",
         c.bg,
         c.text,
         `border ${c.border}`,
@@ -314,12 +431,20 @@ function BlockChip(
     nodes: () => {
       const b = block();
       if (!b) return "";
+      const cat = CATEGORY_META[b.category];
       const geo = geometry();
-      // Show more info when block is tall enough
+      const badge = Badge({
+        variant: "outline",
+        class: `text-[8px] px-1 py-0 h-3.5 leading-none font-mono shrink-0 ${cat.badge}`,
+        nodes: cat.tag,
+      });
+      const bpp = bppForCategory(b.category, activeMode());
+      const tiles = bpp ? tileCount(b.sizeWords, bpp) : null;
+      const tileSuffix = tiles !== null ? `  ${tiles} tiles` : "";
       if (geo.height > 30) {
-        return `${b.label}  ${fmtHex(b.startWord)}–${fmtHex(b.startWord + b.sizeWords)}`;
+        return [badge, span({ class: "truncate", nodes: `${b.label}  ${fmtHex(b.startWord, showBytes())}–${fmtHex(b.startWord + b.sizeWords, showBytes())}${tileSuffix}` })];
       }
-      return b.label;
+      return [badge, span({ class: "truncate", nodes: b.label })];
     },
     on: {
       click: (e: Event) => {
@@ -335,14 +460,41 @@ function BlockChip(
     },
   }) as HTMLElement;
 
-  // Conflict/warning badge
-  const badge = div({
-    class: () => cn(
-      "absolute top-1 right-1 w-2 h-2 rounded-full",
-      hasConflict() ? "bg-red-500" : hasWarning() ? "bg-amber-500" : "hidden"
-    ),
+  // Status indicators (top-right)
+  const indicators = div({
+    class: "absolute top-0.5 right-0.5 flex items-center gap-0.5",
+    nodes: [
+      // DMA streamed icon
+      div({
+        class: () => block()?.transfer === "streamed" ? "text-yellow-500" : "hidden",
+        nodes: ZapIcon({ class: "size-3" }),
+      }),
+      // Lock icon
+      div({
+        class: () => block()?.locked ? "" : "hidden",
+        nodes: LockIcon({ class: "size-3 opacity-60" }),
+      }),
+      // Conflict/warning dot with tooltip
+      TooltipProvider({ nodes:
+        Tooltip({ nodes: [
+          TooltipTrigger({ nodes:
+            div({
+              class: () => cn(
+                "w-2 h-2 rounded-full",
+                hasConflict() ? "bg-red-500" : hasWarning() ? "bg-amber-500" : "hidden"
+              ),
+            }),
+          }),
+          TooltipContent({
+            side: "left",
+            class: "max-w-64 text-[10px] whitespace-pre-wrap",
+            nodes: () => tooltipText(),
+          }),
+        ]}),
+      }),
+    ],
   });
-  chip.appendChild(badge as Node);
+  chip.appendChild(indicators as Node);
 
   // Resize handle (bottom edge)
   const resizeHandle = div({
@@ -361,13 +513,13 @@ function BlockChip(
         const startMouseY = me.clientY;
         const originalSize = b.sizeWords;
 
+        const resizeAlignStep = Math.max(WORDS_PER_ROW, getAlignmentStep(b.category));
         const onMouseMove = (ev: MouseEvent) => {
           const deltaY = ev.clientY - startMouseY;
           const deltaRows = Math.round(deltaY / ROW_HEIGHT_PX);
           const newSize = originalSize + deltaRows * WORDS_PER_ROW;
-          const clamped = Math.max(WORDS_PER_ROW, Math.min(newSize, VRAM_WORDS - b.startWord));
-          // Snap to row boundaries
-          const snapped = Math.round(clamped / WORDS_PER_ROW) * WORDS_PER_ROW;
+          const clamped = Math.max(resizeAlignStep, Math.min(newSize, VRAM_WORDS - b.startWord));
+          const snapped = Math.round(clamped / resizeAlignStep) * resizeAlignStep;
 
           // Check for conflicts
           const candidate: VramBlock = { ...b, sizeWords: snapped };
@@ -393,4 +545,55 @@ function BlockChip(
   chip.appendChild(resizeHandle as Node);
 
   return chip;
+}
+
+// ── OBJ Page Overlay ──────────────────────────────────────────────────
+// Shows the OBSEL-configured OBJ tile page regions as subtle overlays
+
+function ObjPageOverlay(
+  pixelsPerWord: () => number,
+  range: () => { startWord: number; endWord: number },
+  label: string,
+) {
+  return div({
+    class: "absolute pointer-events-none z-10 border border-dashed border-orange-400/60 bg-orange-500/8 dark:bg-orange-400/8 rounded-sm overflow-hidden",
+    style: {
+      top: () => {
+        const r = range();
+        const startRow = Math.floor(r.startWord / WORDS_PER_ROW);
+        return `${startRow * ROW_HEIGHT_PX}px`;
+      },
+      left: "0px",
+      width: () => `${WORDS_PER_ROW * pixelsPerWord()}px`,
+      height: () => {
+        const r = range();
+        const startRow = Math.floor(r.startWord / WORDS_PER_ROW);
+        const endRow = Math.ceil(Math.min(r.endWord, VRAM_WORDS) / WORDS_PER_ROW);
+        return `${(endRow - startRow) * ROW_HEIGHT_PX}px`;
+      },
+    },
+    nodes: span({
+      class: "absolute top-0.5 right-1 text-[8px] font-mono text-orange-500/70 dark:text-orange-400/70",
+      nodes: label,
+    }),
+  });
+}
+
+// ── Ghost Chip (compare scene overlay) ────────────────────────────────
+
+function GhostChip(startWord: number, sizeWords: number, label: string, pixelsPerWord: () => number) {
+  const startRow = Math.floor(startWord / WORDS_PER_ROW);
+  const endRow = Math.ceil((startWord + sizeWords) / WORDS_PER_ROW);
+  const rows = endRow - startRow;
+
+  return div({
+    class: "absolute rounded border-2 border-dashed border-violet-500/50 bg-violet-500/10 pointer-events-none z-5 flex items-start px-1.5 py-0.5 text-[9px] text-violet-600 dark:text-violet-300 font-mono overflow-hidden",
+    style: {
+      top: `${startRow * ROW_HEIGHT_PX + 1}px`,
+      left: "0px",
+      width: () => `${WORDS_PER_ROW * pixelsPerWord()}px`,
+      height: `${rows * ROW_HEIGHT_PX - 2}px`,
+    },
+    nodes: label,
+  });
 }

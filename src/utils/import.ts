@@ -1,6 +1,7 @@
 import { toast } from "sibujs-ui";
 import { appStore } from "../store";
-import type { VramBlock } from "../types";
+import type { VramBlock, ProjectData, Scene } from "../types";
+import { DEFAULT_OBSEL } from "../constants";
 
 function validateBlocks(raw: unknown): VramBlock[] {
   if (!Array.isArray(raw)) throw new Error("Expected a JSON array");
@@ -15,9 +16,53 @@ function validateBlocks(raw: unknown): VramBlock[] {
   });
 }
 
+function isProjectData(data: unknown): data is ProjectData {
+  return typeof data === "object" && data !== null &&
+    (data as Record<string, unknown>).version === 2 &&
+    Array.isArray((data as Record<string, unknown>).scenes);
+}
+
+function isScene(data: unknown): data is Scene {
+  return typeof data === "object" && data !== null &&
+    typeof (data as Record<string, unknown>).name === "string" &&
+    Array.isArray((data as Record<string, unknown>).blocks);
+}
+
 export function importFromJson(jsonText: string) {
   try {
-    const parsed   = JSON.parse(jsonText);
+    const parsed = JSON.parse(jsonText);
+
+    // Full project import (v2)
+    if (isProjectData(parsed)) {
+      for (const scene of parsed.scenes) {
+        scene.obsel = scene.obsel ?? { ...DEFAULT_OBSEL };
+        appStore.dispatch("addScene", scene.name);
+        appStore.dispatch("importBlocks", scene.blocks);
+        if (scene.activeModeId != null) {
+          appStore.dispatch("setMode", scene.activeModeId);
+        }
+        if (scene.obsel) {
+          appStore.dispatch("setObsel", scene.obsel);
+        }
+      }
+      toast.success(`Imported project with ${parsed.scenes.length} scene${parsed.scenes.length > 1 ? "s" : ""}`);
+      return;
+    }
+
+    // Single scene import
+    if (isScene(parsed)) {
+      appStore.dispatch("importBlocks", parsed.blocks);
+      if (parsed.activeModeId != null) {
+        appStore.dispatch("setMode", parsed.activeModeId);
+      }
+      if (parsed.obsel) {
+        appStore.dispatch("setObsel", parsed.obsel);
+      }
+      toast.success(`Imported scene "${parsed.name}" with ${parsed.blocks.length} block${parsed.blocks.length > 1 ? "s" : ""}`);
+      return;
+    }
+
+    // Legacy: plain block array
     const validated = validateBlocks(parsed);
     appStore.dispatch("importBlocks", validated);
     toast.success(`Imported ${validated.length} block${validated.length > 1 ? "s" : ""}`);

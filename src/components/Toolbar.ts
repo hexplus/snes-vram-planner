@@ -10,12 +10,16 @@ import {
   Textarea,
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   Grid2x2Icon, HashIcon, MoonIcon, SunIcon, DownloadIcon, Trash2Icon,
-  ZoomInIcon, ZoomOutIcon, UploadIcon, LayoutTemplateIcon,
+  ZoomInIcon, ZoomOutIcon, UploadIcon, LayoutTemplateIcon, Share2Icon,
 } from "sibujs-ui";
 import { appStore, activeMode, showGrid, showAddresses, darkMode, zoom,
-         usagePercent, conflicts, alignWarnings, totalUsed, blocks, canUndo, canRedo } from "../store";
+         usagePercent, conflicts, alignWarnings, totalUsed, canUndo, canRedo,
+         scenes, activeSceneId, activeScene, obselWarnings, showBytes } from "../store";
 import { SNES_MODES } from "../constants";
-import { exportAsAsm, exportAsJson } from "../utils/export";
+import { exportAsAsm, exportSceneAsJson, exportProjectAsJson } from "../utils/export";
+import type { AsmFormat } from "../utils/export";
+import { encodeSceneToHash } from "../utils/url";
+import { toast } from "sibujs-ui";
 import { importFromJson } from "../utils/import";
 import { PRESETS } from "../utils/presets";
 import { AddBlockDialog } from "./AddBlockDialog";
@@ -122,6 +126,16 @@ export function Toolbar() {
             })}),
             TooltipContent({ side: "bottom", nodes: "Toggle address labels" }),
           ]}),
+          Tooltip({ nodes: [
+            TooltipTrigger({ nodes: Button({
+              size: "sm",
+              variant: "ghost",
+              class: "text-[10px] font-mono px-1.5",
+              nodes: () => showBytes() ? "Byte" : "Word",
+              on: { click: () => appStore.dispatch("toggleAddressMode") },
+            })}),
+            TooltipContent({ side: "bottom", nodes: "Toggle byte/word addresses" }),
+          ]}),
         ]}),
 
         Separator({ orientation: "vertical", class: "h-6" }),
@@ -161,10 +175,14 @@ export function Toolbar() {
               nodes: Button({ variant: "outline", size: "sm", nodes: [LayoutTemplateIcon({ class: "size-3 mr-1" }), "Presets"] }),
             }),
             DropdownMenuContent({
-              nodes: Object.entries(PRESETS).map(([name, presetBlocks]) =>
+              nodes: Object.entries(PRESETS).map(([name, preset]) =>
                 DropdownMenuItem({
                   nodes: name,
-                  onSelect: () => appStore.dispatch("importBlocks", presetBlocks),
+                  onSelect: () => {
+                    appStore.dispatch("importBlocks", preset.blocks);
+                    appStore.dispatch("setMode", preset.activeModeId);
+                    appStore.dispatch("setObsel", preset.obsel);
+                  },
                 })
               ),
             }),
@@ -208,16 +226,37 @@ export function Toolbar() {
         // ── Export ──────────────────────────────────────────────────
         Select({
           onValueChange: (v: string) => {
-            if (v === "asm")  downloadFile(exportAsAsm(blocks(), activeMode().label), "vram_layout.asm");
-            if (v === "json") downloadFile(exportAsJson(blocks()), "vram_layout.json");
+            const scene = activeScene();
+            if (v.startsWith("asm-")) {
+              const fmt = v.replace("asm-", "") as AsmFormat;
+              downloadFile(exportAsAsm(scene.blocks, activeMode().label, scene.obsel, fmt), `vram_layout.${fmt === "wla" ? "inc" : "asm"}`);
+            }
+            if (v === "scene-json") downloadFile(exportSceneAsJson(scene), `${scene.name}.json`);
+            if (v === "project-json") downloadFile(exportProjectAsJson(scenes(), activeSceneId()), "vram_project.json");
           },
           nodes: [
             SelectTrigger({ class: "w-28", nodes: [DownloadIcon({ class: "size-4 mr-1" }), "Export"] }),
             SelectContent({ nodes: [
-              SelectItem({ value: "asm",  nodes: "Export .asm" }),
-              SelectItem({ value: "json", nodes: "Export JSON" }),
+              SelectItem({ value: "asm-ca65",  nodes: "ASM (ca65)" }),
+              SelectItem({ value: "asm-asar",  nodes: "ASM (asar)" }),
+              SelectItem({ value: "asm-wla",   nodes: "ASM (WLA-DX)" }),
+              SelectItem({ value: "scene-json", nodes: "Scene JSON" }),
+              SelectItem({ value: "project-json", nodes: "All Scenes JSON" }),
             ]}),
           ],
+        }),
+
+        // ── Share ──────────────────────────────────────────────────
+        Button({
+          variant: "outline", size: "sm",
+          nodes: [Share2Icon({ class: "size-3 mr-1" }), "Share"],
+          on: { click: () => {
+            const scene = activeScene();
+            const hash = encodeSceneToHash(scene);
+            const url = `${window.location.origin}${window.location.pathname}#${hash}`;
+            navigator.clipboard.writeText(url);
+            toast.success("Share URL copied to clipboard");
+          }},
         }),
 
         // ── Clear all ───────────────────────────────────────────────
@@ -260,6 +299,13 @@ export function Toolbar() {
               ? `${alignWarnings().length} alignment`
               : "Aligned",
             on: { click: () => { if (alignWarnings().length > 0) openAlignmentDialog(); } },
+          }),
+          Badge({
+            variant: (() => obselWarnings().length > 0 ? "secondary" : "outline") as unknown as "secondary" | "outline",
+            class: () => obselWarnings().length > 0 ? "text-orange-600 border-orange-400" : "",
+            nodes: () => obselWarnings().length > 0
+              ? `${obselWarnings().length} OBSEL`
+              : "OBSEL OK",
           }),
           Badge({
             variant: "secondary",

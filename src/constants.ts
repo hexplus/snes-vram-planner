@@ -1,4 +1,15 @@
-import type { SnesMode } from "./types";
+import type { SnesMode, BlockCategory } from "./types";
+
+// Category metadata: short tag, display label, and badge color classes
+export const CATEGORY_META: Record<BlockCategory, { tag: string; label: string; badge: string }> = {
+  "bg-tiles":    { tag: "BG-CHR", label: "BG Tiles",         badge: "bg-blue-600 text-white border-blue-700" },
+  "bg-map":      { tag: "BG-MAP", label: "BG Tilemap",       badge: "bg-emerald-600 text-white border-emerald-700" },
+  "obj-tiles":   { tag: "OBJ",    label: "OBJ Tiles",        badge: "bg-purple-600 text-white border-purple-700" },
+  "mode7-tiles": { tag: "M7",     label: "Mode 7 Tiles",     badge: "bg-rose-600 text-white border-rose-700" },
+  "color-math":  { tag: "CMATH",  label: "Color Math",       badge: "bg-amber-600 text-white border-amber-700" },
+  "hdma":        { tag: "HDMA",   label: "HDMA Table",       badge: "bg-cyan-600 text-white border-cyan-700" },
+  "free":        { tag: "FREE",   label: "Free / Unassigned", badge: "bg-gray-500 text-white border-gray-600" },
+};
 
 // VRAM is 64KB = 32768 words (each word = 2 bytes)
 export const VRAM_WORDS = 32768;
@@ -42,6 +53,37 @@ export const BLOCK_COLORS: Record<string, { bg: string; text: string; border: st
   red:    { bg: "bg-red-300 dark:bg-red-700",     text: "text-red-950 dark:text-red-50",      border: "border-red-500" },
   gray:   { bg: "bg-gray-200 dark:bg-gray-700",   text: "text-gray-900 dark:text-gray-100",   border: "border-gray-400" },
 };
+
+// Default OBSEL config: OBJ page 0 at $8000 (word 16384), page 1 at $A000 (gap=8KB)
+export const DEFAULT_OBSEL = { nameBaseWord: 0x4000, gap: 0x1000 as const }; // 16384 words, 4096 word gap
+
+// OBJ page size is always 8KB = 4096 words (256 tiles at 4bpp, or 512 at 2bpp)
+export const OBJ_PAGE_WORDS = 4096;
+
+// OBSEL sprite size configurations (bits 5-7)
+// Each entry: [small size, large size]
+import type { ObjSizeSelect } from "./types";
+export const OBJ_SIZE_OPTIONS: { value: ObjSizeSelect; small: string; large: string }[] = [
+  { value: 0, small: "8×8",  large: "16×16" },
+  { value: 1, small: "8×8",  large: "32×32" },
+  { value: 2, small: "8×8",  large: "64×64" },
+  { value: 3, small: "16×16", large: "32×32" },
+  { value: 4, small: "16×16", large: "64×64" },
+  { value: 5, small: "32×32", large: "64×64" },
+];
+
+// BG tilemap sizes: screen count × 1024 words per 32×32 screen
+import type { MapSize } from "./types";
+export const MAP_SIZE_WORDS: Record<MapSize, number> = {
+  "32x32": 1024, "64x32": 2048, "32x64": 2048, "64x64": 4096,
+};
+export const MAP_SIZE_SC_BITS: Record<MapSize, number> = {
+  "32x32": 0, "64x32": 1, "32x64": 2, "64x64": 3,
+};
+
+// VBlank DMA budget (bytes transferable per VBlank)
+export const VBLANK_DMA_BYTES_NTSC = 2273;
+export const VBLANK_DMA_BYTES_PAL = 2656;
 
 // Size in words of common SNES data structures
 export const TILE_SIZES_WORDS = {

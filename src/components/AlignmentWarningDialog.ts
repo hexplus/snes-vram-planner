@@ -8,7 +8,8 @@ import {
 import { alignWarnings, blocks, appStore } from "../store";
 import { fmtHex } from "../utils/format";
 import { detectConflicts } from "../utils/conflicts";
-import { VRAM_WORDS, WORDS_PER_ROW } from "../constants";
+import { VRAM_WORDS } from "../constants";
+import { getAlignmentStep } from "../utils/alignment";
 import type { AlignmentWarning, VramBlock } from "../types";
 
 const [isOpen, setIsOpen] = signal(false);
@@ -25,17 +26,15 @@ export function openAlignmentDialog(blockId?: string) {
  * Returns the new startWord, or null if no valid position found.
  */
 function findAlignedPosition(block: VramBlock, allBlocks: VramBlock[]): number | null {
-  const align = getRequiredAlignment(block.category);
-  if (align === 0) return null; // no alignment requirement
+  const alignWords = getAlignmentStep(block.category);
+  if (alignWords <= 1) return null;
 
   const others = allBlocks.filter(b => b.id !== block.id);
-  const alignWords = align / 2; // convert byte alignment to word alignment
 
   // Search outward from current position: try nearest boundaries first
   const currentAligned = Math.round(block.startWord / alignWords) * alignWords;
   const candidates: number[] = [currentAligned];
 
-  // Generate candidates outward in both directions
   for (let offset = alignWords; offset < VRAM_WORDS; offset += alignWords) {
     const below = currentAligned - offset;
     const above = currentAligned + offset;
@@ -44,28 +43,15 @@ function findAlignedPosition(block: VramBlock, allBlocks: VramBlock[]): number |
     if (below < 0 && above + block.sizeWords > VRAM_WORDS) break;
   }
 
-  // Also snap size to row boundaries
-  const size = Math.max(WORDS_PER_ROW, Math.ceil(block.sizeWords / WORDS_PER_ROW) * WORDS_PER_ROW);
-
   for (const start of candidates) {
-    if (start < 0 || start + size > VRAM_WORDS) continue;
-    const candidate: VramBlock = { ...block, startWord: start, sizeWords: size };
+    if (start < 0 || start + block.sizeWords > VRAM_WORDS) continue;
+    const candidate: VramBlock = { ...block, startWord: start };
     const conflicts = detectConflicts([...others, candidate])
       .some(c => c.blockAId === block.id || c.blockBId === block.id);
     if (!conflicts) return start;
   }
 
   return null;
-}
-
-function getRequiredAlignment(category: string): number {
-  switch (category) {
-    case "bg-tiles":   return 0x2000; // 8KB
-    case "bg-map":     return 0x0800; // 2KB
-    case "obj-tiles":  return 0x2000; // 8KB
-    case "mode7-tiles": return 0x10000; // must be at 0
-    default: return 0;
-  }
 }
 
 function fixSingleBlock(blockId: string) {

@@ -1,9 +1,13 @@
 import { div, span, derived } from "sibujs";
 import { Progress, Separator } from "sibujs-ui";
-import { blocks, usagePercent, conflicts, alignWarnings } from "../store";
+import { blocks, usagePercent, conflicts, alignWarnings, dmaBudgetUsed, dmaBudgetPercent } from "../store";
 import { openAlignmentDialog } from "./AlignmentWarningDialog";
-import { fmtKb } from "../utils/format";
+import { fmtKb, tileCount } from "../utils/format";
+import { VBLANK_DMA_BYTES_NTSC } from "../constants";
 import type { BlockCategory } from "../types";
+
+// OAM holds 128 sprites. Each 4bpp 8x8 tile = 16 words. Max OBJ VRAM = 2 pages × 4096 words = 512 tiles.
+const OAM_MAX_SPRITES = 128;
 
 const CATEGORIES: { id: BlockCategory; label: string }[] = [
   { id: "bg-tiles",    label: "BG Tiles" },
@@ -67,6 +71,33 @@ export function StatsBar() {
             ? `${alignWarnings().length} alignment warning${alignWarnings().length > 1 ? "s" : ""}`
             : "Aligned"
           }),
+        ],
+      }),
+
+      Separator({ orientation: "vertical", class: "h-4" }),
+
+      // DMA budget
+      div({
+        class: () => `flex items-center gap-2 ${dmaBudgetPercent() > 100 ? "text-red-500" : dmaBudgetUsed() > 0 ? "text-foreground" : "text-muted-foreground"}`,
+        nodes: [
+          span({ class: "whitespace-nowrap", nodes: "DMA" }),
+          Progress({ value: dmaBudgetPercent, max: 100, class: "h-2 w-16" }),
+          span({ class: "font-mono whitespace-nowrap", nodes: () => `${dmaBudgetUsed()}/${VBLANK_DMA_BYTES_NTSC}B` }),
+        ],
+      }),
+
+      Separator({ orientation: "vertical", class: "h-4" }),
+
+      // OAM budget
+      div({
+        class: "flex items-center gap-1 text-muted-foreground",
+        nodes: [
+          span({ class: "whitespace-nowrap", nodes: "OBJ:" }),
+          span({ class: "font-mono whitespace-nowrap", nodes: () => {
+            const objBlocks = blocks().filter(b => b.category === "obj-tiles");
+            const totalTiles = objBlocks.reduce((s, b) => s + tileCount(b.sizeWords, 4), 0);
+            return `${totalTiles} tiles, ${OAM_MAX_SPRITES} sprites max`;
+          }}),
         ],
       }),
     ],
