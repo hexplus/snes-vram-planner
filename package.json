@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
-    "sibujs": "^1.0.7",
-    "sibujs-ui": "^1.0.8",
+    "sibujs": "^1.0.8",
+    "sibujs-ui": "^1.0.9",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {

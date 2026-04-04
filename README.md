@@ -62,6 +62,10 @@ Visual VRAM layout planner for the Super Nintendo. Plan and arrange BG tiles, ti
 - Overlap conflict detection with human-readable explanations
 - PPU alignment warnings (BGxNBA, BGxSC, OBSEL, Mode 7)
 
+## Tech Stack
+
+Built with [SibuJS](https://sibujs.dev) — a minimalist, function-based frontend framework with fine-grained reactivity, no virtual DOM, no compiler, no JSX. UI components from [sibujs-ui](https://sibujs.dev) (shadcn/ui-inspired). Styled with Tailwind CSS.
+
 ## Getting Started
 
 ```bash
@@ -79,6 +83,13 @@ npm run dev
 | Escape | Deselect block |
 | +/- | Zoom in/out |
 | Ctrl+1-9 | Switch to scene by index |
+
+## Build
+
+```bash
+npm run build    # Type-check + production build (outputs to dist/)
+npm run lint     # ESLint
+```
 
 ## Disclaimer
 
