@@ -1,9 +1,9 @@
-import { div, span, signal } from "sibujs";
+import { div, span, signal, each } from "sibujs";
 import {
   Button, Input,
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
-  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
   PlusIcon, EllipsisIcon, GitCompareIcon,
 } from "sibujs-ui";
@@ -11,12 +11,19 @@ import { appStore, scenes, activeSceneId, compareSceneId } from "../store";
 
 export function SceneBar() {
   return div({
-    class: "flex items-center gap-0 border-b bg-muted/30 px-2 overflow-x-auto",
+    class: "flex items-center gap-0 border-b bg-muted/30 px-2",
     nodes: [
       // Scene tabs
       div({
         class: "flex items-center gap-0",
-        nodes: () => scenes().map(scene => SceneTab(scene.id, scene.name)),
+        nodes: each(
+          () => scenes(),
+          (scene) => {
+            const s = scene();
+            return SceneTab(s.id, s.name);
+          },
+          { key: s => s.id },
+        ),
       }),
 
       // Add scene button
@@ -38,14 +45,12 @@ export function SceneBar() {
             const current = compareSceneId();
             const otherScenes = scenes().filter(s => s.id !== activeSceneId());
             return [
-              // "Off" button
               Button({
                 size: "sm", variant: current === null ? "default" : "ghost",
                 class: "h-6 text-[10px] px-2",
                 nodes: "Off",
                 on: { click: () => appStore.dispatch("setCompareScene", null) },
               }),
-              // One button per other scene
               ...otherScenes.map(s =>
                 Button({
                   size: "sm", variant: current === s.id ? "default" : "ghost",
@@ -62,8 +67,25 @@ export function SceneBar() {
   });
 }
 
+type ImperativeDialog = { open: () => void; close: () => void };
+
+function openDialogRef(ref: { current: HTMLElement | null }, slot: "__dialog" | "__alertDialog") {
+  setTimeout(() => {
+    const el = ref.current;
+    if (el) (el as HTMLElement & Record<string, ImperativeDialog | undefined>)[slot]?.open();
+  }, 0);
+}
+
 function SceneTab(sceneId: string, initialName: string) {
   const [renameText, setRenameText] = signal(initialName);
+  const renameDialogRef = { current: null as HTMLElement | null };
+  const deleteDialogRef = { current: null as HTMLElement | null };
+
+  function openRenameDialog() {
+    const scene = scenes().find(s => s.id === sceneId);
+    if (scene) setRenameText(scene.name);
+    openDialogRef(renameDialogRef, "__dialog");
+  }
 
   return div({
     class: () => {
@@ -82,83 +104,83 @@ function SceneTab(sceneId: string, initialName: string) {
       }}),
 
       // Context menu (dropdown)
-      DropdownMenu({ nodes: [
-        DropdownMenuTrigger({
-          nodes: div({
+      DropdownMenu({
+        on: { click: (e: Event) => e.stopPropagation() },
+        nodes: [
+          DropdownMenuTrigger({
             class: "ml-1 p-0.5 rounded hover:bg-muted",
-            on: { click: (e: Event) => e.stopPropagation() },
             nodes: EllipsisIcon({ class: "size-3" }),
           }),
-        }),
-        DropdownMenuContent({ nodes: [
-          // Rename
-          Dialog({ nodes: [
-            DialogTrigger({
-              nodes: DropdownMenuItem({
-                onSelect: () => {
-                  const scene = scenes().find(s => s.id === sceneId);
-                  if (scene) setRenameText(scene.name);
-                },
+          DropdownMenuContent({ nodes: [
+            DropdownMenuItem({
+              nodes: "Rename",
+              onSelect: () => openRenameDialog(),
+            }),
+            DropdownMenuItem({
+              nodes: "Duplicate",
+              onSelect: () => appStore.dispatch("duplicateScene", sceneId),
+            }),
+            DropdownMenuSeparator({}),
+            DropdownMenuItem({
+              class: () => scenes().length <= 1 ? "opacity-50 pointer-events-none" : "text-destructive",
+              nodes: "Delete",
+              onSelect: () => {
+                if (scenes().length > 1) openDialogRef(deleteDialogRef, "__alertDialog");
+              },
+            }),
+          ]}),
+        ],
+      }),
+
+      // Rename dialog — outside the dropdown so it renders independently
+      Dialog({
+        ref: renameDialogRef,
+        nodes: [
+          DialogContent({ nodes: [
+            DialogHeader({ nodes: [
+              DialogTitle({ nodes: "Rename Scene" }),
+              DialogDescription({ nodes: "Enter a new name for this scene." }),
+            ]}),
+            div({ class: "py-4", nodes:
+              Input({
+                value: () => renameText(),
+                on: { input: (e: Event) => setRenameText((e.target as HTMLInputElement).value) },
+              }),
+            }),
+            DialogFooter({ nodes: [
+              DialogClose({ nodes: Button({ variant: "outline", nodes: "Cancel" }) }),
+              DialogClose({ nodes: Button({
                 nodes: "Rename",
-              }),
-            }),
-            DialogContent({ nodes: [
-              DialogHeader({ nodes: [
-                DialogTitle({ nodes: "Rename Scene" }),
-                DialogDescription({ nodes: "Enter a new name for this scene." }),
-              ]}),
-              div({ class: "py-4", nodes:
-                Input({
-                  value: (() => renameText()) as unknown as string,
-                  on: { input: (e: Event) => setRenameText((e.target as HTMLInputElement).value) },
-                }),
-              }),
-              DialogFooter({ nodes: [
-                DialogClose({ nodes: Button({ variant: "outline", nodes: "Cancel" }) }),
-                DialogClose({ nodes: Button({
-                  nodes: "Rename",
-                  on: { click: () => appStore.dispatch("renameScene", { id: sceneId, name: renameText() }) },
-                })}),
-              ]}),
+                on: { click: () => appStore.dispatch("renameScene", { id: sceneId, name: renameText() }) },
+              })}),
             ]}),
           ]}),
+        ],
+      }),
 
-          // Duplicate
-          DropdownMenuItem({
-            nodes: "Duplicate",
-            onSelect: () => appStore.dispatch("duplicateScene", sceneId),
-          }),
-
-          DropdownMenuSeparator({}),
-
-          // Delete
-          AlertDialog({ nodes: [
-            AlertDialogTrigger({
-              nodes: DropdownMenuItem({
-                class: () => scenes().length <= 1 ? "opacity-50 pointer-events-none" : "text-destructive",
+      // Delete confirmation — outside the dropdown
+      AlertDialog({
+        ref: deleteDialogRef,
+        nodes: [
+          AlertDialogContent({ nodes: [
+            AlertDialogHeader({ nodes: [
+              AlertDialogTitle({ nodes: "Delete scene?" }),
+              AlertDialogDescription({ nodes: () => {
+                const scene = scenes().find(s => s.id === sceneId);
+                return `This will permanently delete "${scene?.name ?? initialName}" and all its blocks.`;
+              }}),
+            ]}),
+            AlertDialogFooter({ nodes: [
+              AlertDialogCancel({ nodes: "Cancel" }),
+              AlertDialogAction({
+                variant: "destructive",
                 nodes: "Delete",
+                on: { click: () => appStore.dispatch("removeScene", sceneId) },
               }),
-            }),
-            AlertDialogContent({ nodes: [
-              AlertDialogHeader({ nodes: [
-                AlertDialogTitle({ nodes: "Delete scene?" }),
-                AlertDialogDescription({ nodes: () => {
-                  const scene = scenes().find(s => s.id === sceneId);
-                  return `This will permanently delete "${scene?.name ?? "this scene"}" and all its blocks.`;
-                }}),
-              ]}),
-              AlertDialogFooter({ nodes: [
-                AlertDialogCancel({ nodes: "Cancel" }),
-                AlertDialogAction({
-                  variant: "destructive",
-                  nodes: "Delete",
-                  on: { click: () => appStore.dispatch("removeScene", sceneId) },
-                }),
-              ]}),
             ]}),
           ]}),
-        ]}),
-      ]}),
+        ],
+      }),
     ],
   });
 }

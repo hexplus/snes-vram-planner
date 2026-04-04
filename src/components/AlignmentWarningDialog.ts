@@ -1,6 +1,6 @@
-import { div, span, signal, each, derived, effect, ref } from "sibujs";
+import { div, span, signal, each, derived, effect } from "sibujs";
 import {
-  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose, Button,
   Separator,
   AlertTriangleIcon, WrenchIcon, CircleCheckIcon,
@@ -195,31 +195,36 @@ export function AlignmentWarningDialog() {
     return id ? all.filter(w => w.blockId === id) : all;
   });
 
-  // We need to programmatically click the DialogTrigger to open.
-  // The ref points to the trigger wrapper so we can call .click() on it.
-  const triggerRef = ref<HTMLElement | null>(null);
+  type DialogApi = { open: () => void; close: () => void; isOpen: () => boolean };
+  let dialogApi: DialogApi | null = null;
+  let dialogEl: HTMLElement | null = null;
 
+  function ensureApi() {
+    if (!dialogApi && dialogEl) {
+      dialogApi = (dialogEl as HTMLElement & { __dialog?: DialogApi }).__dialog ?? null;
+    }
+    return dialogApi;
+  }
+
+  // Sync external isOpen signal with Dialog's internal API
   effect(() => {
-    if (isOpen()) {
-      // Use setTimeout to ensure the effect doesn't run synchronously
-      // during another signal update cycle
-      setTimeout(() => {
-        const el = triggerRef.current;
-        if (el) el.click();
-        setIsOpen(false);
-      }, 0);
+    const open = isOpen();
+    const api = ensureApi();
+    if (!api) {
+      if (open) setTimeout(() => { ensureApi()?.open(); }, 0);
+      return;
+    }
+    if (open && !api.isOpen()) {
+      api.open();
+    } else if (!open && api.isOpen()) {
+      api.close();
     }
   });
 
-  return Dialog({
-    onOpenChange: () => {},
+  const el = Dialog({
+    onOpenChange: (open: boolean) => setIsOpen(open),
+    onElement: (node: HTMLElement) => { dialogEl = node; },
     nodes: [
-      DialogTrigger({
-        ref: triggerRef,
-        style: { position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" },
-        nodes: "open",
-      }),
-
       DialogContent({
         showCloseButton: true,
         class: "max-w-lg max-h-[80vh] overflow-y-auto",
@@ -251,7 +256,7 @@ export function AlignmentWarningDialog() {
             // Warning list
             each(
               visibleWarnings,
-              (warning) => WarningDetail(warning),
+              (warning) => WarningDetail(warning()),
               { key: w => w.blockId },
             ),
 
@@ -289,4 +294,6 @@ export function AlignmentWarningDialog() {
       }),
     ],
   });
+
+  return el;
 }

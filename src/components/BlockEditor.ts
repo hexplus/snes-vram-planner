@@ -27,7 +27,9 @@ export function BlockEditor() {
   return div({
     class: "h-full",
     nodes: when(
-      () => selectedId() !== null,
+      // Return the actual ID so when() re-renders when switching between blocks
+      // (when() uses === comparison internally, not just truthy/falsy)
+      (() => selectedId()) as unknown as () => boolean,
       () => BlockEditorForm(selectedId()!),
       () => EmptyState(),
     ),

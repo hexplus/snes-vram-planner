@@ -69,7 +69,7 @@ export function Toolbar() {
         div({ class: "flex items-center gap-1.5", nodes: [
           span({ class: "text-xs text-muted-foreground", nodes: "Mode:" }),
           Select({
-            defaultValue: String(activeMode().id),
+            value: () => String(activeMode().id),
             onValueChange: (v: string) => appStore.dispatch("setMode", Number(v)),
             nodes: [
               SelectTrigger({ class: "w-56", nodes:
@@ -205,7 +205,7 @@ export function Toolbar() {
                   Textarea({
                     placeholder: '[{"id":"...","label":"...","startWord":0,"sizeWords":256,...}]',
                     rows: 6,
-                    value: (() => importText()) as unknown as string,
+                    value: () => importText(),
                     on: { input: (e: Event) => setImportText((e.target as HTMLTextAreaElement).value) },
                   }),
                 ]}),
@@ -287,13 +287,13 @@ export function Toolbar() {
         // ── Stats (right side) ──────────────────────────────────────
         div({ class: "ml-auto flex items-center gap-2", nodes: [
           Badge({
-            variant: (() => conflicts().length > 0 ? "destructive" : "outline") as unknown as "destructive" | "outline",
+            variant: () => conflicts().length > 0 ? "destructive" : "outline",
             nodes: () => conflicts().length > 0
               ? `${conflicts().length} conflict${conflicts().length > 1 ? "s" : ""}`
               : "No conflicts",
           }),
           Badge({
-            variant: (() => alignWarnings().length > 0 ? "secondary" : "outline") as unknown as "secondary" | "outline",
+            variant: () => alignWarnings().length > 0 ? "secondary" : "outline",
             class: () => alignWarnings().length > 0 ? "text-amber-600 border-amber-400 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900" : "",
             nodes: () => alignWarnings().length > 0
               ? `${alignWarnings().length} alignment`
@@ -301,7 +301,7 @@ export function Toolbar() {
             on: { click: () => { if (alignWarnings().length > 0) openAlignmentDialog(); } },
           }),
           Badge({
-            variant: (() => obselWarnings().length > 0 ? "secondary" : "outline") as unknown as "secondary" | "outline",
+            variant: () => obselWarnings().length > 0 ? "secondary" : "outline",
             class: () => obselWarnings().length > 0 ? "text-orange-600 border-orange-400" : "",
             nodes: () => obselWarnings().length > 0
               ? `${obselWarnings().length} OBSEL`

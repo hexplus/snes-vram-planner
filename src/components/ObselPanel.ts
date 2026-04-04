@@ -40,7 +40,7 @@ export function ObselPanel() {
     div({ class: "flex flex-col gap-1.5", nodes: [
       Label({ class: "text-xs", nodes: "Name Base (bits 0-2)" }),
       Select({
-        defaultValue: String(activeObsel().nameBaseWord),
+        value: () => String(activeObsel().nameBaseWord),
         onValueChange: (v: string) => {
           const o = activeObsel();
           appStore.dispatch("setObsel", { ...o, nameBaseWord: Number(v) });
@@ -61,7 +61,7 @@ export function ObselPanel() {
     div({ class: "flex flex-col gap-1.5", nodes: [
       Label({ class: "text-xs", nodes: "Name Select / gap (bits 3-4)" }),
       Select({
-        defaultValue: String(activeObsel().gap),
+        value: () => String(activeObsel().gap),
         onValueChange: (v: string) => {
           const o = activeObsel();
           appStore.dispatch("setObsel", { ...o, gap: Number(v) as ObselGap });
@@ -79,7 +79,7 @@ export function ObselPanel() {
     div({ class: "flex flex-col gap-1.5", nodes: [
       Label({ class: "text-xs", nodes: "Sprite Size (bits 5-7)" }),
       Select({
-        defaultValue: String(activeObsel().objSize ?? 0),
+        value: () => String(activeObsel().objSize ?? 0),
         onValueChange: (v: string) => {
           const o = activeObsel();
           appStore.dispatch("setObsel", { ...o, objSize: Number(v) as ObjSizeSelect });

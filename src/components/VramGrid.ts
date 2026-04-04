@@ -177,87 +177,77 @@ export function VramGrid() {
   );
 
   // ── Main grid container ───────────────────────────────────────────
-  const grid = div({
+  return div({
     ref: containerRef,
     class: "relative w-full overflow-x-hidden overflow-y-auto font-mono",
     style: { height: "100%" },
     on: {
       mousedown: onGridMouseDown,
     },
-  }) as HTMLElement;
+    nodes: div({
+      class: "relative w-full",
+      style: { height: `${gridHeight}px`, minHeight: `${gridHeight}px` },
+      nodes: [
+        // Row lines and address labels
+        ...RowLines(),
 
-  // Inner container with fixed height for scrolling
-  const inner = div({
-    class: "relative w-full",
-    style: { height: `${gridHeight}px`, minHeight: `${gridHeight}px` },
-  });
+        // OBJ page overlays
+        ObjPageOverlay(pixelsPerWord, objPage0Range, "OBJ Page 0"),
+        ObjPageOverlay(pixelsPerWord, objPage1Range, "OBJ Page 1"),
 
-  // Add row lines
-  const rowLines = RowLines();
-  for (const el of rowLines) {
-    inner.appendChild(el as Node);
-  }
+        // Selection preview overlay
+        div({
+          class: () => cn(
+            "absolute pointer-events-none z-15 rounded border-2 border-dashed border-primary/70 bg-primary/10",
+            !isSelecting() && "hidden",
+          ),
+          style: {
+            top: () => {
+              const r = selRange();
+              if (!r) return "0px";
+              const startRow = Math.floor(r.startWord / WORDS_PER_ROW);
+              return `${startRow * ROW_HEIGHT_PX}px`;
+            },
+            left: "0px",
+            width: () => `${WORDS_PER_ROW * pixelsPerWord()}px`,
+            height: () => {
+              const r = selRange();
+              if (!r) return "0px";
+              const rows = r.sizeWords / WORDS_PER_ROW;
+              return `${rows * ROW_HEIGHT_PX}px`;
+            },
+          },
+          nodes: span({
+            class: "absolute top-1 left-2 text-[10px] font-mono text-primary font-medium",
+            nodes: () => {
+              const r = selRange();
+              if (!r) return "";
+              const endWord = r.startWord + r.sizeWords;
+              const kb = (r.sizeWords * 2 / 1024).toFixed(1);
+              return `${fmtHex(r.startWord, showBytes())}–${fmtHex(endWord, showBytes())}  (${kb} KB)`;
+            },
+          }),
+        }),
 
-  // OBJ page overlays
-  inner.appendChild(ObjPageOverlay(pixelsPerWord, objPage0Range, "OBJ Page 0") as Node);
-  inner.appendChild(ObjPageOverlay(pixelsPerWord, objPage1Range, "OBJ Page 1") as Node);
+        // Render block chips absolutely positioned within the grid
+        each(
+          filteredBlocks,
+          (block) => BlockChip(block().id, pixelsPerWord),
+          { key: b => b.id }
+        ),
 
-  // Selection preview overlay
-  const selPreview = div({
-    class: () => cn(
-      "absolute pointer-events-none z-15 rounded border-2 border-dashed border-primary/70 bg-primary/10",
-      !isSelecting() && "hidden",
-    ),
-    style: {
-      top: () => {
-        const r = selRange();
-        if (!r) return "0px";
-        const startRow = Math.floor(r.startWord / WORDS_PER_ROW);
-        return `${startRow * ROW_HEIGHT_PX}px`;
-      },
-      left: "0px",
-      width: () => `${WORDS_PER_ROW * pixelsPerWord()}px`,
-      height: () => {
-        const r = selRange();
-        if (!r) return "0px";
-        const rows = r.sizeWords / WORDS_PER_ROW;
-        return `${rows * ROW_HEIGHT_PX}px`;
-      },
-    },
-    nodes: span({
-      class: "absolute top-1 left-2 text-[10px] font-mono text-primary font-medium",
-      nodes: () => {
-        const r = selRange();
-        if (!r) return "";
-        const endWord = r.startWord + r.sizeWords;
-        const kb = (r.sizeWords * 2 / 1024).toFixed(1);
-        return `${fmtHex(r.startWord, showBytes())}–${fmtHex(endWord, showBytes())}  (${kb} KB)`;
-      },
+        // Compare scene ghost blocks
+        div({
+          class: () => compareScene() ? "" : "hidden",
+          nodes: () => {
+            const scene = compareScene();
+            if (!scene) return "";
+            return scene.blocks.map(b => GhostChip(b.startWord, b.sizeWords, b.label, pixelsPerWord));
+          },
+        }),
+      ],
     }),
   });
-  inner.appendChild(selPreview as Node);
-
-  // Render block chips absolutely positioned within the grid
-  const blockChips = each(
-    filteredBlocks,
-    (block) => BlockChip(block.id, pixelsPerWord),
-    { key: b => b.id }
-  );
-  inner.appendChild(blockChips as Node);
-
-  // Compare scene ghost blocks
-  const ghostBlocks = div({
-    class: () => compareScene() ? "" : "hidden",
-    nodes: () => {
-      const scene = compareScene();
-      if (!scene) return "";
-      return scene.blocks.map(b => GhostChip(b.startWord, b.sizeWords, b.label, pixelsPerWord));
-    },
-  });
-  inner.appendChild(ghostBlocks as Node);
-
-  grid.appendChild(inner as Node);
-  return grid;
 }
 
 // ── Block Chip ────────────────────────────────────────────────────────
@@ -405,7 +395,7 @@ function BlockChip(
     document.addEventListener("mouseup", onMouseUp);
   }
 
-  const chip = div({
+  return div({
     "data-block-chip": "true",
     class: () => {
       const c = colors();
@@ -428,24 +418,105 @@ function BlockChip(
       width:  () => `${geometry().width}px`,
       height: () => `${geometry().height}px`,
     },
-    nodes: () => {
-      const b = block();
-      if (!b) return "";
-      const cat = CATEGORY_META[b.category];
-      const geo = geometry();
-      const badge = Badge({
-        variant: "outline",
-        class: `text-[8px] px-1 py-0 h-3.5 leading-none font-mono shrink-0 ${cat.badge}`,
-        nodes: cat.tag,
-      });
-      const bpp = bppForCategory(b.category, activeMode());
-      const tiles = bpp ? tileCount(b.sizeWords, bpp) : null;
-      const tileSuffix = tiles !== null ? `  ${tiles} tiles` : "";
-      if (geo.height > 30) {
-        return [badge, span({ class: "truncate", nodes: `${b.label}  ${fmtHex(b.startWord, showBytes())}–${fmtHex(b.startWord + b.sizeWords, showBytes())}${tileSuffix}` })];
-      }
-      return [badge, span({ class: "truncate", nodes: b.label })];
-    },
+    nodes: [
+      // Reactive label content
+      div({ class: "flex items-start gap-1 overflow-hidden", nodes: () => {
+        const b = block();
+        if (!b) return "";
+        const cat = CATEGORY_META[b.category];
+        const geo = geometry();
+        const badge = Badge({
+          variant: "outline",
+          class: `text-[8px] px-1 py-0 h-3.5 leading-none font-mono shrink-0 ${cat.badge}`,
+          nodes: cat.tag,
+        });
+        const bpp = bppForCategory(b.category, activeMode());
+        const tiles = bpp ? tileCount(b.sizeWords, bpp) : null;
+        const tileSuffix = tiles !== null ? `  ${tiles} tiles` : "";
+        if (geo.height > 30) {
+          return [badge, span({ class: "truncate", nodes: `${b.label}  ${fmtHex(b.startWord, showBytes())}–${fmtHex(b.startWord + b.sizeWords, showBytes())}${tileSuffix}` })];
+        }
+        return [badge, span({ class: "truncate", nodes: b.label })];
+      }}),
+
+      // Status indicators (top-right)
+      div({
+        class: "absolute top-0.5 right-0.5 flex items-center gap-0.5",
+        nodes: [
+          div({
+            class: () => block()?.transfer === "streamed" ? "text-yellow-500" : "hidden",
+            nodes: ZapIcon({ class: "size-3" }),
+          }),
+          div({
+            class: () => block()?.locked ? "" : "hidden",
+            nodes: LockIcon({ class: "size-3 opacity-60" }),
+          }),
+          TooltipProvider({ nodes:
+            Tooltip({ nodes: [
+              TooltipTrigger({ nodes:
+                div({
+                  class: () => cn(
+                    "w-2 h-2 rounded-full",
+                    hasConflict() ? "bg-red-500" : hasWarning() ? "bg-amber-500" : "hidden"
+                  ),
+                }),
+              }),
+              TooltipContent({
+                side: "left",
+                class: "max-w-64 text-[10px] whitespace-pre-wrap",
+                nodes: () => tooltipText(),
+              }),
+            ]}),
+          }),
+        ],
+      }),
+
+      // Resize handle (bottom edge)
+      div({
+        class: () => cn(
+          "absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-white/30",
+          block()?.locked && "hidden"
+        ),
+        on: {
+          mousedown: (e: Event) => {
+            const me = e as MouseEvent;
+            me.stopPropagation();
+            me.preventDefault();
+            const b = block();
+            if (!b || b.locked) return;
+
+            const startMouseY = me.clientY;
+            const originalSize = b.sizeWords;
+
+            const resizeAlignStep = Math.max(WORDS_PER_ROW, getAlignmentStep(b.category));
+            const onMouseMove = (ev: MouseEvent) => {
+              const deltaY = ev.clientY - startMouseY;
+              const deltaRows = Math.round(deltaY / ROW_HEIGHT_PX);
+              const newSize = originalSize + deltaRows * WORDS_PER_ROW;
+              const clamped = Math.max(resizeAlignStep, Math.min(newSize, VRAM_WORDS - b.startWord));
+              const snapped = Math.round(clamped / resizeAlignStep) * resizeAlignStep;
+
+              const candidate: VramBlock = { ...b, sizeWords: snapped };
+              const others = blocks().filter(x => x.id !== blockId);
+              const wouldConflict = detectConflicts([...others, candidate])
+                .some(c => c.blockAId === blockId || c.blockBId === blockId);
+
+              if (!wouldConflict) {
+                appStore.dispatch("updateBlock", { id: blockId, sizeWords: snapped });
+              }
+            };
+
+            const onMouseUp = () => {
+              document.removeEventListener("mousemove", onMouseMove);
+              document.removeEventListener("mouseup", onMouseUp);
+            };
+
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+          },
+        },
+      }),
+    ],
     on: {
       click: (e: Event) => {
         e.stopPropagation();
@@ -453,98 +524,11 @@ function BlockChip(
       },
       dblclick: (e: Event) => {
         e.stopPropagation();
-        // Double-click selects for editing
         appStore.dispatch("selectBlock", blockId);
       },
       mousedown: onMouseDown,
     },
-  }) as HTMLElement;
-
-  // Status indicators (top-right)
-  const indicators = div({
-    class: "absolute top-0.5 right-0.5 flex items-center gap-0.5",
-    nodes: [
-      // DMA streamed icon
-      div({
-        class: () => block()?.transfer === "streamed" ? "text-yellow-500" : "hidden",
-        nodes: ZapIcon({ class: "size-3" }),
-      }),
-      // Lock icon
-      div({
-        class: () => block()?.locked ? "" : "hidden",
-        nodes: LockIcon({ class: "size-3 opacity-60" }),
-      }),
-      // Conflict/warning dot with tooltip
-      TooltipProvider({ nodes:
-        Tooltip({ nodes: [
-          TooltipTrigger({ nodes:
-            div({
-              class: () => cn(
-                "w-2 h-2 rounded-full",
-                hasConflict() ? "bg-red-500" : hasWarning() ? "bg-amber-500" : "hidden"
-              ),
-            }),
-          }),
-          TooltipContent({
-            side: "left",
-            class: "max-w-64 text-[10px] whitespace-pre-wrap",
-            nodes: () => tooltipText(),
-          }),
-        ]}),
-      }),
-    ],
   });
-  chip.appendChild(indicators as Node);
-
-  // Resize handle (bottom edge)
-  const resizeHandle = div({
-    class: () => cn(
-      "absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-white/30",
-      block()?.locked && "hidden"
-    ),
-    on: {
-      mousedown: (e: Event) => {
-        const me = e as MouseEvent;
-        me.stopPropagation();
-        me.preventDefault();
-        const b = block();
-        if (!b || b.locked) return;
-
-        const startMouseY = me.clientY;
-        const originalSize = b.sizeWords;
-
-        const resizeAlignStep = Math.max(WORDS_PER_ROW, getAlignmentStep(b.category));
-        const onMouseMove = (ev: MouseEvent) => {
-          const deltaY = ev.clientY - startMouseY;
-          const deltaRows = Math.round(deltaY / ROW_HEIGHT_PX);
-          const newSize = originalSize + deltaRows * WORDS_PER_ROW;
-          const clamped = Math.max(resizeAlignStep, Math.min(newSize, VRAM_WORDS - b.startWord));
-          const snapped = Math.round(clamped / resizeAlignStep) * resizeAlignStep;
-
-          // Check for conflicts
-          const candidate: VramBlock = { ...b, sizeWords: snapped };
-          const others = blocks().filter(x => x.id !== blockId);
-          const wouldConflict = detectConflicts([...others, candidate])
-            .some(c => c.blockAId === blockId || c.blockBId === blockId);
-
-          if (!wouldConflict) {
-            appStore.dispatch("updateBlock", { id: blockId, sizeWords: snapped });
-          }
-        };
-
-        const onMouseUp = () => {
-          document.removeEventListener("mousemove", onMouseMove);
-          document.removeEventListener("mouseup", onMouseUp);
-        };
-
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-      },
-    },
-  });
-  chip.appendChild(resizeHandle as Node);
-
-  return chip;
 }
 
 // ── OBJ Page Overlay ──────────────────────────────────────────────────

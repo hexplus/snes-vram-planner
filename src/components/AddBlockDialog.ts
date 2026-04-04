@@ -90,7 +90,7 @@ export function AddBlockDialog() {
             div({ class: "flex flex-col gap-1.5", nodes: [
               Label({ nodes: "Label" }),
               Input({
-                value: (() => label()) as unknown as string,
+                value: () => label(),
                 on: { input: (e: Event) => setLabel((e.target as HTMLInputElement).value) },
               }),
             ]}),
@@ -100,7 +100,7 @@ export function AddBlockDialog() {
                 Label({ nodes: "Start (words)" }),
                 Input({
                   type: "number", min: "0", max: "32512", step: "256",
-                  value: (() => String(startWord())) as unknown as string,
+                  value: () => String(startWord()),
                   on: { input: (e: Event) => setStart(Math.round(Number((e.target as HTMLInputElement).value) / WORDS_PER_ROW) * WORDS_PER_ROW) },
                 }),
                 span({ class: "text-xs font-mono text-muted-foreground", nodes: () => fmtHex(startWord()) }),
@@ -109,7 +109,7 @@ export function AddBlockDialog() {
                 Label({ nodes: "Size (words)" }),
                 Input({
                   type: "number", min: "256", max: "32768", step: "256",
-                  value: (() => String(sizeWords())) as unknown as string,
+                  value: () => String(sizeWords()),
                   on: {
                     input: (e: Event) => {
                       const newSize = Math.max(WORDS_PER_ROW, Math.round(Number((e.target as HTMLInputElement).value) / WORDS_PER_ROW) * WORDS_PER_ROW);
@@ -126,7 +126,7 @@ export function AddBlockDialog() {
               div({ class: "flex flex-col gap-1.5", nodes: [
                 Label({ nodes: "Category" }),
                 Select({
-                  value: (() => category()) as unknown as string,
+                  value: () => category(),
                   onValueChange: (v: string) => setCategory(v as BlockCategory),
                   nodes: [
                     SelectTrigger({ nodes: SelectValue({ placeholder: "Category" }) }),
@@ -146,7 +146,7 @@ export function AddBlockDialog() {
               div({ class: "flex flex-col gap-1.5", nodes: [
                 Label({ nodes: "Color" }),
                 Select({
-                  value: (() => color()) as unknown as string,
+                  value: () => color(),
                   onValueChange: (v: string) => setColor(v as BlockColor),
                   nodes: [
                     SelectTrigger({ nodes: SelectValue({ placeholder: "Color" }) }),
