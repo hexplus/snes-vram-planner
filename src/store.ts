@@ -18,7 +18,7 @@ function createScene(name: string, modeId = 1): Scene {
 }
 
 function getScene(state: AppState): Scene {
-  return state.scenes.find(s => s.id === state.activeSceneId)!;
+  return state.scenes.find(s => s.id === state.activeSceneId) ?? state.scenes[0];
 }
 
 function updateActiveScene(state: AppState, patch: Partial<Scene>): Scene[] {
@@ -87,12 +87,16 @@ function loadInitialState(): AppState {
   // Try new format first
   const project = persistedProject();
   if (project && project.version === 2 && project.scenes?.length) {
+    const scenes = project.scenes.map(s => ({
+      ...s,
+      obsel: s.obsel ?? { ...DEFAULT_OBSEL },
+    }));
+    const validSceneId = scenes.some(s => s.id === project.activeSceneId)
+      ? project.activeSceneId
+      : scenes[0].id;
     return {
-      scenes: project.scenes.map(s => ({
-        ...s,
-        obsel: s.obsel ?? { ...DEFAULT_OBSEL },
-      })),
-      activeSceneId: project.activeSceneId,
+      scenes,
+      activeSceneId: validSceneId,
       selectedBlockId: null,
       showGrid: true,
       showAddresses: true,

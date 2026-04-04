@@ -68,27 +68,30 @@ export function Toolbar() {
         // ── Mode selector ───────────────────────────────────────────
         div({ class: "flex items-center gap-1.5", nodes: [
           span({ class: "text-xs text-muted-foreground", nodes: "Mode:" }),
-          Select({
-            value: () => String(activeMode().id),
-            onValueChange: (v: string) => appStore.dispatch("setMode", Number(v)),
+          DropdownMenu({
             nodes: [
-              SelectTrigger({ class: "w-56", nodes:
-                span({ class: "flex items-center gap-2 truncate", nodes: () => [
-                  span({ class: "font-medium", nodes: activeMode().label }),
-                  span({ class: "text-[10px] font-mono text-muted-foreground", nodes: `${activeMode().bgCount}BG ${activeMode().bpp.join("/")}bpp` }),
-                ]}),
-              }),
-              SelectContent({ nodes: SNES_MODES.map(m =>
-                SelectItem({ value: String(m.id), nodes:
-                  div({ class: "flex flex-col", nodes: [
-                    div({ class: "flex items-center gap-2", nodes: [
-                      span({ class: "font-medium", nodes: m.label }),
-                      span({ class: "text-[10px] font-mono text-muted-foreground", nodes: `${m.bgCount}BG ${m.bpp.join("/")}bpp` }),
-                    ]}),
-                    span({ class: "text-[10px] text-muted-foreground", nodes: m.description }),
+              DropdownMenuTrigger({
+                nodes: Button({ variant: "outline", size: "sm", class: "w-56 justify-start", nodes:
+                  span({ class: "flex items-center gap-2 truncate", nodes: () => [
+                    span({ class: "font-medium", nodes: activeMode().label }),
+                    span({ class: "text-[10px] font-mono text-muted-foreground", nodes: `${activeMode().bgCount}BG ${activeMode().bpp.join("/")}bpp` }),
                   ]}),
-                })
-              )}),
+                }),
+              }),
+              DropdownMenuContent({
+                nodes: SNES_MODES.map(m =>
+                  DropdownMenuItem({
+                    onSelect: () => appStore.dispatch("setMode", m.id),
+                    nodes: div({ class: "flex flex-col", nodes: [
+                      div({ class: "flex items-center gap-2", nodes: [
+                        span({ class: "font-medium", nodes: m.label }),
+                        span({ class: "text-[10px] font-mono text-muted-foreground", nodes: `${m.bgCount}BG ${m.bpp.join("/")}bpp` }),
+                      ]}),
+                      span({ class: "text-[10px] text-muted-foreground", nodes: m.description }),
+                    ]}),
+                  })
+                ),
+              }),
             ],
           }),
         ]}),
