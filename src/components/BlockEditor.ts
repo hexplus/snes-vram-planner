@@ -27,9 +27,7 @@ export function BlockEditor() {
   return div({
     class: "h-full",
     nodes: when(
-      // Return the actual ID so when() re-renders when switching between blocks
-      // (when() uses === comparison internally, not just truthy/falsy)
-      (() => selectedId()) as unknown as () => boolean,
+      selectedId,
       () => BlockEditorForm(selectedId()!),
       () => EmptyState(),
     ),
@@ -181,7 +179,7 @@ function BlockEditorForm(blockId: string) {
             div({ class: "flex flex-col gap-1.5", nodes: [
               Label({ nodes: "Category" }),
               Select({
-                defaultValue: initialBlock.category,
+                value: () => block()?.category ?? initialBlock.category,
                 onValueChange: (v: string) => dispatchUpdate({ category: v as BlockCategory }),
                 nodes: [
                   SelectTrigger({ nodes: SelectValue({ placeholder: "Category" }) }),
@@ -225,7 +223,7 @@ function BlockEditorForm(blockId: string) {
             nodes: [
               Label({ nodes: "BG Layer" }),
               Select({
-                defaultValue: String(initialBlock.bgLayer ?? 1),
+                value: () => String(block()?.bgLayer ?? initialBlock.bgLayer ?? 1),
                 onValueChange: (v: string) => dispatchUpdate({ bgLayer: Number(v) as 1 | 2 | 3 | 4 }),
                 nodes: [
                   SelectTrigger({ class: "h-8", nodes: SelectValue({}) }),
@@ -364,7 +362,7 @@ function BlockEditorForm(blockId: string) {
             nodes: [
               Label({ nodes: "Map Size" }),
               Select({
-                defaultValue: initialBlock.mapSize ?? "32x32",
+                value: () => block()?.mapSize ?? initialBlock.mapSize ?? "32x32",
                 onValueChange: (v: string) => {
                   const ms = v as MapSize;
                   dispatchUpdate({ mapSize: ms, sizeWords: MAP_SIZE_WORDS[ms] });

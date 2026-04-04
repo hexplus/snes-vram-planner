@@ -67,24 +67,15 @@ export function SceneBar() {
   });
 }
 
-type ImperativeDialog = { open: () => void; close: () => void };
-
-function openDialogRef(ref: { current: HTMLElement | null }, slot: "__dialog" | "__alertDialog") {
-  setTimeout(() => {
-    const el = ref.current;
-    if (el) (el as HTMLElement & Record<string, ImperativeDialog | undefined>)[slot]?.open();
-  }, 0);
-}
-
 function SceneTab(sceneId: string, initialName: string) {
   const [renameText, setRenameText] = signal(initialName);
-  const renameDialogRef = { current: null as HTMLElement | null };
-  const deleteDialogRef = { current: null as HTMLElement | null };
+  const [renameOpen, setRenameOpen] = signal(false);
+  const [deleteOpen, setDeleteOpen] = signal(false);
 
   function openRenameDialog() {
     const scene = scenes().find(s => s.id === sceneId);
     if (scene) setRenameText(scene.name);
-    openDialogRef(renameDialogRef, "__dialog");
+    setRenameOpen(true);
   }
 
   return div({
@@ -125,7 +116,7 @@ function SceneTab(sceneId: string, initialName: string) {
               class: () => scenes().length <= 1 ? "opacity-50 pointer-events-none" : "text-destructive",
               nodes: "Delete",
               onSelect: () => {
-                if (scenes().length > 1) openDialogRef(deleteDialogRef, "__alertDialog");
+                if (scenes().length > 1) setDeleteOpen(true);
               },
             }),
           ]}),
@@ -134,7 +125,8 @@ function SceneTab(sceneId: string, initialName: string) {
 
       // Rename dialog — outside the dropdown so it renders independently
       Dialog({
-        ref: renameDialogRef,
+        open: renameOpen,
+        onOpenChange: (open: boolean) => setRenameOpen(open),
         nodes: [
           DialogContent({ nodes: [
             DialogHeader({ nodes: [
@@ -160,7 +152,8 @@ function SceneTab(sceneId: string, initialName: string) {
 
       // Delete confirmation — outside the dropdown
       AlertDialog({
-        ref: deleteDialogRef,
+        open: deleteOpen,
+        onOpenChange: (open: boolean) => setDeleteOpen(open),
         nodes: [
           AlertDialogContent({ nodes: [
             AlertDialogHeader({ nodes: [

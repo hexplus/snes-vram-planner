@@ -1,4 +1,4 @@
-import { div, span, signal, each, derived, effect } from "sibujs";
+import { div, span, signal, each, derived } from "sibujs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose, Button,
@@ -195,35 +195,9 @@ export function AlignmentWarningDialog() {
     return id ? all.filter(w => w.blockId === id) : all;
   });
 
-  type DialogApi = { open: () => void; close: () => void; isOpen: () => boolean };
-  let dialogApi: DialogApi | null = null;
-  let dialogEl: HTMLElement | null = null;
-
-  function ensureApi() {
-    if (!dialogApi && dialogEl) {
-      dialogApi = (dialogEl as HTMLElement & { __dialog?: DialogApi }).__dialog ?? null;
-    }
-    return dialogApi;
-  }
-
-  // Sync external isOpen signal with Dialog's internal API
-  effect(() => {
-    const open = isOpen();
-    const api = ensureApi();
-    if (!api) {
-      if (open) setTimeout(() => { ensureApi()?.open(); }, 0);
-      return;
-    }
-    if (open && !api.isOpen()) {
-      api.open();
-    } else if (!open && api.isOpen()) {
-      api.close();
-    }
-  });
-
   const el = Dialog({
+    open: isOpen,
     onOpenChange: (open: boolean) => setIsOpen(open),
-    onElement: (node: HTMLElement) => { dialogEl = node; },
     nodes: [
       DialogContent({
         showCloseButton: true,
