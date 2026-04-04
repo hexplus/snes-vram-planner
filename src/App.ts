@@ -1,4 +1,4 @@
-import { div } from "sibujs";
+import { div, span } from "sibujs";
 import {
   ResizablePanelGroup, ResizablePanel, ResizableHandle,
   Tabs, TabsList, TabsTrigger, TabsContent,
@@ -44,45 +44,58 @@ export function App() {
           ResizablePanel({
             defaultSize: 25,
             minSize: 20,
-            nodes: Tabs({
-              defaultValue: "block",
+            nodes: div({
               class: "flex flex-col h-full overflow-hidden border-l",
               nodes: [
-                TabsList({
-                  variant: "line",
-                  class: "w-full justify-start px-2 shrink-0",
+                Tabs({
+                  defaultValue: "block",
+                  class: "flex flex-col flex-1 overflow-hidden",
                   nodes: [
-                    TabsTrigger({ value: "block", nodes: [BoxIcon({ class: "size-3.5 mr-1" }), "Block"] }),
-                    TabsTrigger({ value: "mode", nodes: [LayersIcon({ class: "size-3.5 mr-1" }), "Mode"] }),
-                    TabsTrigger({ value: "obsel", nodes: [InfoIcon({ class: "size-3.5 mr-1" }), "OBSEL"] }),
-                    TabsTrigger({ value: "registers", nodes: [CpuIcon({ class: "size-3.5 mr-1" }), "Regs"] }),
-                    TabsTrigger({ value: "cgram", nodes: [PaletteIcon({ class: "size-3.5 mr-1" }), "CGRAM"] }),
+                    TabsList({
+                      variant: "line",
+                      class: "w-full justify-start px-2 shrink-0",
+                      nodes: [
+                        TabsTrigger({ value: "block", nodes: [BoxIcon({ class: "size-3.5 mr-1" }), "Block"] }),
+                        TabsTrigger({ value: "mode", nodes: [LayersIcon({ class: "size-3.5 mr-1" }), "Mode"] }),
+                        TabsTrigger({ value: "obsel", nodes: [InfoIcon({ class: "size-3.5 mr-1" }), "OBSEL"] }),
+                        TabsTrigger({ value: "registers", nodes: [CpuIcon({ class: "size-3.5 mr-1" }), "Regs"] }),
+                        TabsTrigger({ value: "cgram", nodes: [PaletteIcon({ class: "size-3.5 mr-1" }), "CGRAM"] }),
+                      ],
+                    }),
+                    TabsContent({
+                      value: "block",
+                      class: "flex-1 overflow-y-auto p-3 mt-0",
+                      nodes: BlockEditor(),
+                    }),
+                    TabsContent({
+                      value: "mode",
+                      class: "flex-1 overflow-y-auto mt-0",
+                      nodes: ModeInfo(),
+                    }),
+                    TabsContent({
+                      value: "obsel",
+                      class: "flex-1 overflow-y-auto mt-0",
+                      nodes: ObselPanel(),
+                    }),
+                    TabsContent({
+                      value: "registers",
+                      class: "flex-1 overflow-y-auto mt-0",
+                      nodes: RegisterPanel(),
+                    }),
+                    TabsContent({
+                      value: "cgram",
+                      class: "flex-1 overflow-y-auto mt-0",
+                      nodes: CgramPanel(),
+                    }),
                   ],
                 }),
-                TabsContent({
-                  value: "block",
-                  class: "flex-1 overflow-y-auto p-3 mt-0",
-                  nodes: BlockEditor(),
-                }),
-                TabsContent({
-                  value: "mode",
-                  class: "flex-1 overflow-y-auto mt-0",
-                  nodes: ModeInfo(),
-                }),
-                TabsContent({
-                  value: "obsel",
-                  class: "flex-1 overflow-y-auto mt-0",
-                  nodes: ObselPanel(),
-                }),
-                TabsContent({
-                  value: "registers",
-                  class: "flex-1 overflow-y-auto mt-0",
-                  nodes: RegisterPanel(),
-                }),
-                TabsContent({
-                  value: "cgram",
-                  class: "flex-1 overflow-y-auto mt-0",
-                  nodes: CgramPanel(),
+                div({
+                  class: "shrink-0 px-3 py-2 text-[10px] text-muted-foreground text-center border-t",
+                  nodes: span({
+                    class: "underline cursor-pointer hover:text-foreground",
+                    nodes: "Project built using sibujs and sibujs-ui",
+                    on: { click: () => window.open("https://sibujs.dev", "_blank") },
+                  }),
                 }),
               ],
             }),
@@ -90,7 +103,7 @@ export function App() {
         ],
       }),
 
-      Toaster({ position: "bottom-right", richColors: true }),
+      Toaster({ position: "bottom-right", richColors: true, class: "pointer-events-none [&>*]:pointer-events-auto" }),
       AlignmentWarningDialog(),
     ],
   });
