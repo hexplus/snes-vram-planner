@@ -4,52 +4,79 @@ Visual VRAM layout planner for the Super Nintendo. Plan and arrange BG tiles, ti
 
 ## Features
 
+### Toolbar
+- PPU mode selector (Mode 0 through Mode 7)
+- Add Block dialog with category, color, start address, and size fields
+- Grid lines, address labels, and byte/word address toggles
+- Zoom controls (+/-)
+- Dark mode toggle (sun/moon icon)
+- Preset layouts (Mode 0, Mode 1, Mode 7)
+- Import JSON and Export (ca65, asar, WLA-DX, scene JSON, project JSON)
+- Share button: encode the current scene in the URL hash and copy to clipboard
+- Clear All with confirmation dialog
+- Live status badges: conflict count, alignment warnings, OBSEL warnings, VRAM usage %, and KB used
+
 ### VRAM Grid
-- Interactive 128x256 word grid representing the full 64 KB VRAM
+- Interactive 128×256 word grid representing the full 64 KB VRAM
 - Drag-and-drop block placement with alignment-aware snapping (8 KB for tiles, 2 KB for maps)
 - Click and drag on empty space to create blocks with a live size preview
 - Resize blocks from the bottom edge, snapped to PPU alignment boundaries
 - Category badges, lock icons, and DMA streamed indicators on every block
 - Conflict/warning dot tooltips with detailed explanations on hover
-- Byte/word address toggle for the entire UI
+- OBJ Page 0 and Page 1 overlays shown on the grid
+- Ghost block outlines when comparing scenes
 
 ### PPU Modes & Registers
 - All 8 SNES PPU background modes (Mode 0 through Mode 7)
-- Explicit BG layer assignment per block for accurate register computation
-- Live PPU register output panel: BGxSC, BG12NBA, BG34NBA, OBSEL with bitfield breakdown
+- Explicit BG layer assignment per block (BG1–BG4) for accurate register computation
+- Live PPU register output panel: BGxSC, BG12NBA, BG34NBA, OBSEL with bitfield breakdown and formulas
 - Copy registers to clipboard as assembler constants
 - Enhancement chip notes (SA-1, SuperFX, S-DD1/SPC7110)
 
 ### OBSEL / OBJ Sprites
-- Full OBSEL register configuration: name base, name select gap, and sprite sizes (bits 0-7)
+- Full OBSEL register configuration: name base, name select gap, and sprite sizes (bits 0–7)
 - OBJ tile page overlays (Page 0 and Page 1) shown on the grid
-- Warnings for OBJ blocks placed outside OBSEL pages and page overflow
+- Color-coded warnings for OBJ blocks placed outside OBSEL pages and page overflow
 - OAM budget display (tile count and 128-sprite hardware limit)
 
 ### Scenes
 - Multiple scenes (title screen, gameplay, menus) each with independent blocks, mode, and OBSEL
-- Scene tabs with rename, duplicate, and delete
-- Cross-scene comparison: overlay another scene's blocks as ghost outlines
+- Scene tabs with rename, duplicate, and delete (with confirmation)
+- Cross-scene comparison: Compare dropdown in the scene bar to overlay another scene's blocks as ghost outlines
 - Switch scenes with Ctrl+1 through Ctrl+9
 
 ### Block Editor
-- Category, color, BG layer, map size (32x32 through 64x64), lock, and DMA streamed toggles
+- Category selector and color picker swatches (8 colors)
+- BG layer assignment (BG1–BG4, shown for bg-tiles and bg-map categories)
+- Map size selector (32×32 through 64×64) with automatic block size adjustment
+- Start address and size sliders with real-time conflict detection
+- Lock toggle to prevent drag and resize
+- DMA streamed toggle (marks blocks updated every VBlank via DMA)
+- Notes field for optional comments per block (included in ASM exports)
+- Duplicate and Delete buttons (delete with confirmation dialog)
 - Tile count calculator and tile slot preview grid
-- Conflict explanations describing what data corruption will occur
-- Alignment warnings with one-click fix
-- Template quick-add buttons based on the active PPU mode
+- Inline conflict explanations with red highlight describing what data corruption will occur
+- Clickable alignment warning badge that opens the alignment dialog
+- Quick-add template buttons based on the active PPU mode (shown when no block is selected)
+
+### Alignment Warning Dialog
+- Detailed per-block alignment warnings with PPU register name, encoding bits, and address formula
+- Explanation of what happens when data is misaligned
+- Per-block Fix button and Fix All button to move blocks to nearest valid aligned position
+- Shows nearest valid boundary before applying
 
 ### CGRAM Palette
 - Palette allocation visualization for the active mode
 - Color bar showing BG and OBJ palette ranges
 - Mode-specific notes (direct color, palette sharing)
 
-### DMA Budget
-- Track static vs streamed blocks
-- VBlank DMA budget bar (2,273 bytes NTSC) in the stats bar
+### Stats Bar
+- Per-category VRAM usage breakdown (BG Tiles, BG Maps, OBJ Tiles, Mode 7, Free)
+- VBlank DMA budget bar (2,273 bytes NTSC) for streamed blocks
+- OAM tile count and sprite limit display
 
 ### Export & Import
-- ASM export in ca65, asar, and WLA-DX syntax with PPU register constants and OBSEL values
+- ASM export in ca65, asar, and WLA-DX syntax with PPU register constants, OBSEL values, and block notes as comments
 - Scene JSON and full project JSON export
 - Import from project JSON, single scene JSON, or legacy block arrays
 - Built-in presets for Mode 0, Mode 1, and Mode 7 layouts
@@ -57,7 +84,7 @@ Visual VRAM layout planner for the Super Nintendo. Plan and arrange BG tiles, ti
 
 ### General
 - Undo/redo (Ctrl+Z / Ctrl+Y)
-- Dark mode
+- Dark mode toggle in the toolbar
 - Persistent layouts via localStorage with automatic migration from older formats
 - Overlap conflict detection with human-readable explanations
 - PPU alignment warnings (BGxNBA, BGxSC, OBSEL, Mode 7)
@@ -81,8 +108,9 @@ npm run dev
 | Ctrl+Y / Ctrl+Shift+Z | Redo |
 | Delete | Delete selected block |
 | Escape | Deselect block |
-| +/- | Zoom in/out |
-| Ctrl+1-9 | Switch to scene by index |
+| Shift+ + | Zoom in |
+| - | Zoom out |
+| Ctrl+1–9 | Switch to scene by index |
 
 ## Build
 
